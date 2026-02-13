@@ -1,29 +1,27 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from app.api import api_router, HTTPException
+from app.db.session import engine, Base
+from app.api.user import router as user_router
 
-app = FastAPI(title="Aviation Tech Records API")
+app = FastAPI(title="Aviation Tech Records")
 
-# In-memory storage (temporary database)
-items = []
+import time
+from sqlalchemy.exc import OperationalError
 
-class Item(BaseModel):
-    name: str
-
-@app.get("/health")
-def root():
-    return {"message": "Aviation Records System Running"}
-
-@app.post("/items")
-def create_item(item: Item):
-    items.append(item.name)
-    return {"items": items}
-
-@app.get("/items/{item_id}")
-def get_item(item_id: int):
-    if item_id <len(items):
-        return {"item": items[item_id]}
+@app.on_event("startup")
+def startup():
+    for i in range(10):
+        try:
+            print(" Waiting for database...")
+            Base.metadata.create_all(bind=engine)
+            print("Database connected.")
+            break
+        except OperationalError:
+            time.sleep(2)
     else:
-        raise HTTPException(status_code=404, detail="Item not found")
+        print(" Database not reachable.")
 
-app.include_router(api_router)
+app.include_router(user_router)
+
+@app.get("/health", tags=["System"])
+def health_check():
+    return {"status": "OK"}
